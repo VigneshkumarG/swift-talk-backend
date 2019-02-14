@@ -25,6 +25,14 @@ public struct Reader<Value, Result> {
     }
 }
 
+extension Reader {
+    public static func read(_ cont: @escaping (Value) -> Reader<Value, Result>) -> Reader<Value, Result> {
+        return Reader { value in
+            return cont(value).run(value)
+        }
+    }
+}
+
 extension Reader: NIOWrapper.Response where Result: NIOWrapper.Response {
     public static func write(_ string: String, status: HTTPResponseStatus, headers: [String : String]) -> Reader<Value, Result> {
         return .const(.write(string, status: status, headers: headers))
