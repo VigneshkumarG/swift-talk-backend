@@ -1,6 +1,5 @@
 import Foundation
 import NIOWrapper
-import WebServer
 
 struct Session {
     var user: User
@@ -71,7 +70,20 @@ struct Reader<Value, Result> {
     let run: (Value) -> Result
 }
 
-extension Reader where Result == NIOInterpreter {
+protocol Resp {
+    static func write(_ string: String, status: HTTPResponseStatus, headers: [String : String]) -> Self
+}
+
+extension Resp {
+    static func write(_ string: String) -> Self {
+        return .write(string, status: .ok, headers: [:])
+    }
+}
+
+extension NIOInterpreter: Resp {}
+
+
+extension Reader where Result: Resp {
     static func write(_ node: Node<Value>) -> Reader<Value, Result> {
         return Reader { value in
             .write(node.render(input: value))
@@ -79,9 +91,8 @@ extension Reader where Result == NIOInterpreter {
     }
 }
 
-typealias I = NIOInterpreter
 
-func interpret(path: [String]) -> Reader<Session, I> {
+func interpret<I: Resp>(path: [String]) -> Reader<Session, I> {
     if path == ["account"] {
         return .write(accountView())
     } else if path == [] {
@@ -93,8 +104,27 @@ func interpret(path: [String]) -> Reader<Session, I> {
 
 let server = Server(resourcePaths: []) { request in
     let session  = Session(user: User(name: "Chris"), currentPath: "/" + request.path.joined(separator: "/"))
-    let result = interpret(path: request.path).run(session)
-    return result
+    let result: Reader<Session, NIOInterpreter> = interpret(path: request.path)
+    return result.run(session)
 }
 
 try server.listen(port: 9999)
+
+
+enum TestInterpreter: Resp {
+    case _write(_ string: String, status: HTTPResponseStatus, headers: [String : String])
+    
+    static func write(_ string: String, status: HTTPResponseStatus, headers: [String : String]) -> TestInterpreter {
+        return ._write(string, status: status, headers: headers)
+    }
+}
+
+func test() {
+    let session = Session(user: User(name: "Test"), currentPath: "")
+    let result: TestInterpreter = interpret(path: []).run(session)
+    guard case let ._write(s, _, _) = result else { assert(false) }
+    assert(s.contains("homepage"))
+    print("Test succeeded")
+}
+
+test()

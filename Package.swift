@@ -119,7 +119,6 @@ let package = Package(
             name: "test-server",
             dependencies: [
                 "NIOWrapper",
-				"WebServer"
             ],
             path: "Sources/test-server"
         ),
